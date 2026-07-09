@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>text2emoji</title>
+  <title>lyrics2emoji</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; color: #fff; font-family: monospace; overflow: hidden; }
@@ -48,6 +48,33 @@
     #loading-spinner.hidden { display: none; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* — caption de la frase actual: mismo estilo que el loading, pero se — */
+    /* — muestra mientras suenan sus emojis, no pasa por WebGL/Hydra —      */
+    #caption-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 66.67vh;
+      padding-left: 3rem;
+      padding-right: 3rem;
+      pointer-events: none;
+    }
+    #caption-overlay.active { display: flex; }
+
+    #caption-text {
+      font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+      font-size: clamp(1rem, 4vw, 3rem);
+      font-weight: 300;
+      color: rgba(255,255,255,0.82);
+      letter-spacing: 0.05em;
+      text-align: center;
+      max-width: 100%;
+    }
 
     /* — editor hydra — */
     #hydra-editor {
@@ -118,30 +145,43 @@
       border: 1px solid rgba(0,0,0,0.3);
     }
 
-    /* — input traducción — */
-    #input-bar {
+    /* — carga y reproducción de LRC — */
+    #lrc-bar {
       position: fixed;
       bottom: 2rem;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
+      align-items: center;
       gap: 0.5rem;
       z-index: 10;
+      font-family: monospace;
     }
 
-    #text-input {
+    #lrc-label {
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.2);
       color: #fff;
       padding: 0.6rem 1rem;
-      font-family: monospace;
       font-size: 1rem;
-      width: 400px;
-      outline: none;
+      cursor: pointer;
+      white-space: nowrap;
     }
-    #text-input::placeholder { color: rgba(255,255,255,0.3); }
+    #lrc-label:hover { background: rgba(255,255,255,0.2); }
 
-    #send-btn {
+    #lrc-select {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.55rem 0.6rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      max-width: 160px;
+      cursor: pointer;
+    }
+    #lrc-select:hover { background: rgba(255,255,255,0.2); }
+
+    #play-btn, #stop-btn, #lrclib-toggle-btn, #lrclib-search-btn {
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       color: #fff;
@@ -149,8 +189,85 @@
       font-family: monospace;
       cursor: pointer;
     }
-    #send-btn:hover   { background: rgba(255,255,255,0.2); }
-    #send-btn:disabled { opacity: 0.4; cursor: default; }
+    #play-btn:hover:not(:disabled),
+    #stop-btn:hover:not(:disabled),
+    #lrclib-toggle-btn:hover,
+    #lrclib-search-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+    #play-btn:disabled, #stop-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* — panel de búsqueda en lrclib.net — */
+    #lrclib-panel {
+      position: fixed;
+      bottom: 5.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 420px;
+      max-width: 90vw;
+      background: rgba(0,0,0,0.85);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.8rem;
+      font-family: monospace;
+    }
+    #lrclib-panel.active { display: flex; }
+
+    #lrclib-form {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    #lrclib-query {
+      flex: 1;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.5rem 0.7rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    #lrclib-query::placeholder { color: rgba(255,255,255,0.3); }
+
+    #lrclib-results {
+      max-height: 260px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    #lrclib-results .result {
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.85);
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    #lrclib-results .result:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+    }
+    #lrclib-results .result .meta {
+      color: rgba(255,255,255,0.4);
+      font-size: 0.72rem;
+    }
+    #lrclib-results .empty {
+      color: rgba(255,255,255,0.4);
+      font-size: 0.8rem;
+      padding: 0.4rem 0.2rem;
+    }
+
+    #lrc-status {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.4);
+      max-width: 260px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   </style>
 </head>
 <body>
@@ -163,12 +280,16 @@
     <div id="loading-spinner"></div>
   </div>
 
+  <!-- caption de la frase actual durante la reproducción del LRC -->
+  <div id="caption-overlay">
+    <div id="caption-text"></div>
+  </div>
+
   <div id="hydra-editor">
     <!--
     <textarea id="hydra-code" spellcheck="false">src(s0).out(o0)</textarea>
     -->
     <textarea id="hydra-code" spellcheck="false">src(s0)
-.scrollX(() => time/10)
 .out(o0)</textarea>
     <div id="hydra-status">ctrl+enter para ejecutar · tab para ocultar</div>
   </div>
@@ -178,9 +299,24 @@
     <input id="bg-slider" type="range" min="0" max="255" value="128">
   </div>
 
-  <div id="input-bar">
-    <input id="text-input" type="text" placeholder="escribe algo..." autocomplete="off" />
-    <button id="send-btn">→</button>
+  <div id="lrclib-panel">
+    <form id="lrclib-form">
+      <input id="lrclib-query" type="text" placeholder="artista - canción" autocomplete="off" />
+      <button id="lrclib-search-btn" type="submit">buscar</button>
+    </form>
+    <div id="lrclib-results"></div>
+  </div>
+
+  <div id="lrc-bar">
+    <select id="lrc-select">
+      <option value="">— canciones guardadas —</option>
+    </select>
+    <button id="lrclib-toggle-btn" type="button">🔎 lrclib</button>
+    <label id="lrc-label" for="lrc-file">📄 nuevo .lrc</label>
+    <input id="lrc-file" type="file" accept=".lrc" hidden />
+    <button id="play-btn" disabled>▶</button>
+    <button id="stop-btn" disabled>■</button>
+    <span id="lrc-status"></span>
   </div>
 
   <script src="https://unpkg.com/hydra-synth"></script>
@@ -192,6 +328,8 @@
 
   <script type="module">
     import { initHydra, showEmojis, clearCanvas, setBgColor, refreshCanvas } from '/src/renderer/hydra.js'
+    import { parseLrc } from '/src/lrc/parser.js'
+    import { createLrcPlayer } from '/src/player/lrcPlayer.js'
 
     const dpr     = window.devicePixelRatio || 1
     const physW   = Math.round(window.innerWidth  * dpr)
@@ -236,60 +374,248 @@
     })
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab' && e.target !== codeEl && e.target !== document.getElementById('text-input')) {
+      if (e.key === 'Tab' && e.target !== codeEl) {
         e.preventDefault()
         editor.classList.toggle('hidden')
       }
     })
 
-    // — traducción —
-    const input      = document.getElementById('text-input')
-    const btn        = document.getElementById('send-btn')
+    // — modo LRC: carga, traducción por lotes y reproducción sincronizada —
     const overlay    = document.getElementById('loading-overlay')
     const loadText   = document.getElementById('loading-text')
     const spinner    = document.getElementById('loading-spinner')
 
-    const MIN_LOADING_MS = 5000
-    const TEXT_LINGER_MS = 2000
+    const fileInput   = document.getElementById('lrc-file')
+    const lrcSelect   = document.getElementById('lrc-select')
+    const playBtn     = document.getElementById('play-btn')
+    const stopBtn     = document.getElementById('stop-btn')
+    const lrcStatusEl = document.getElementById('lrc-status')
 
-    async function submit() {
-      const text = input.value.trim()
-      if (!text) return
-      input.value = ''
-      btn.disabled = true
+    const captionOverlay = document.getElementById('caption-overlay')
+    const captionText     = document.getElementById('caption-text')
 
-      loadText.textContent = text
-      spinner.classList.remove('hidden')
-      overlay.classList.add('active')
-      const t0 = Date.now()
-      console.log(`[translate] → "${text}"`)
+    function hideCaption() {
+      captionOverlay.classList.remove('active')
+      captionText.textContent = ''
+    }
 
+    let translations = {}
+    let titleCard = ''
+
+    const player = createLrcPlayer({
+      onLine: (entry) => {
+        const emojis = translations[entry.text.toLowerCase().trim()]
+        if (!emojis) return
+        showEmojis(emojis)
+        captionText.textContent = entry.text
+        captionOverlay.classList.add('active')
+      },
+      onEnd: () => {
+        hideCaption()
+        playBtn.disabled = false
+        stopBtn.disabled = true
+      },
+    })
+
+    async function refreshLrcList(selectName) {
       try {
-        const res = await fetch('/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        })
-        const { emojis, error, cached } = await res.json()
-        if (error) throw new Error(error)
-        console.log(`[translate] ← ${emojis}${cached ? ' (cached)' : ''}`)
-        const elapsed = Date.now() - t0
-        if (elapsed < MIN_LOADING_MS) await new Promise((r) => setTimeout(r, MIN_LOADING_MS - elapsed))
-        spinner.classList.add('hidden')
-        await showEmojis(emojis)
-        setTimeout(() => overlay.classList.remove('active'), TEXT_LINGER_MS)
+        const res = await fetch('/lrc-list')
+        const { files } = await res.json()
+        lrcSelect.innerHTML = '<option value="">— canciones guardadas —</option>'
+        for (const name of files) {
+          const opt = document.createElement('option')
+          opt.value = name
+          opt.textContent = name.replace(/\.lrc$/i, '')
+          lrcSelect.appendChild(opt)
+        }
+        if (selectName) lrcSelect.value = selectName
       } catch (err) {
-        console.error('[translate] ✗', err.message)
-        overlay.classList.remove('active')
-        clearCanvas()
-      } finally {
-        btn.disabled = false
-        input.focus()
+        console.error('[lrc] ✗ no se pudo listar canciones guardadas:', err.message)
       }
     }
 
-    btn.addEventListener('click', submit)
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit() })
+    // — búsqueda e importación desde lrclib.net —
+    const lrclibToggleBtn = document.getElementById('lrclib-toggle-btn')
+    const lrclibPanel      = document.getElementById('lrclib-panel')
+    const lrclibForm       = document.getElementById('lrclib-form')
+    const lrclibQuery      = document.getElementById('lrclib-query')
+    const lrclibResultsEl  = document.getElementById('lrclib-results')
+
+    function formatDuration(seconds) {
+      if (!seconds && seconds !== 0) return ''
+      const m = Math.floor(seconds / 60)
+      const s = Math.round(seconds % 60)
+      return `${m}:${String(s).padStart(2, '0')}`
+    }
+
+    function splitArtistTrack(query) {
+      const parts = query.split(' - ')
+      if (parts.length >= 2) return { artist: parts[0].trim(), track: parts.slice(1).join(' - ').trim() }
+      return { artist: '', track: query.trim() }
+    }
+
+    lrclibToggleBtn.addEventListener('click', () => {
+      lrclibPanel.classList.toggle('active')
+      if (lrclibPanel.classList.contains('active')) lrclibQuery.focus()
+    })
+
+    lrclibForm.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const query = lrclibQuery.value.trim()
+      if (!query) return
+
+      const { artist, track } = splitArtistTrack(query)
+      lrclibResultsEl.innerHTML = '<div class="empty">buscando…</div>'
+
+      try {
+        const params = new URLSearchParams({ track })
+        if (artist) params.set('artist', artist)
+        const res = await fetch(`/lrclib-search?${params}`)
+        const { results, error } = await res.json()
+        if (error) throw new Error(error)
+
+        if (results.length === 0) {
+          lrclibResultsEl.innerHTML = '<div class="empty">sin resultados con letra sincronizada</div>'
+          return
+        }
+
+        lrclibResultsEl.innerHTML = ''
+        for (const r of results) {
+          const row = document.createElement('div')
+          row.className = 'result'
+          row.innerHTML = `${r.artistName} — ${r.trackName}
+            <div class="meta">${r.albumName || ''} · ${formatDuration(r.duration)}</div>`
+          row.addEventListener('click', () => importLrclibResult(r.id))
+          lrclibResultsEl.appendChild(row)
+        }
+      } catch (err) {
+        console.error('[lrclib] ✗', err.message)
+        lrclibResultsEl.innerHTML = '<div class="empty">error al buscar</div>'
+      }
+    })
+
+    async function importLrclibResult(id) {
+      lrclibResultsEl.innerHTML = '<div class="empty">importando…</div>'
+      try {
+        const res = await fetch('/lrclib-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+        const { name, content, error } = await res.json()
+        if (error) throw new Error(error)
+
+        lrclibPanel.classList.remove('active')
+        await refreshLrcList(name)
+        await processLrc(content, name)
+      } catch (err) {
+        console.error('[lrclib] ✗', err.message)
+        lrclibResultsEl.innerHTML = '<div class="empty">error al importar</div>'
+      }
+    }
+
+    async function processLrc(raw, label) {
+      player.stop()
+      hideCaption()
+      playBtn.disabled = true
+      stopBtn.disabled = true
+
+      const { entries, meta } = parseLrc(raw)
+      if (entries.length === 0) {
+        lrcStatusEl.textContent = 'lrc vacío o inválido'
+        return
+      }
+
+      titleCard = meta.ar && meta.ti
+        ? `${meta.ar} – ${meta.ti}`
+        : (meta.ti || meta.ar || label.replace(/\.lrc$/i, ''))
+
+      const uniqueLines = [...new Set(entries.map((e) => e.text))]
+      console.log(`[lrc] ${entries.length} frases (${uniqueLines.length} únicas) — "${label}"`)
+
+      lrcStatusEl.textContent = `traduciendo ${uniqueLines.length} frases…`
+      loadText.textContent = label
+      spinner.classList.remove('hidden')
+      overlay.classList.add('active')
+
+      try {
+        const res = await fetch('/translate-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lines: uniqueLines }),
+        })
+        const { translations: t, error } = await res.json()
+        if (error) throw new Error(error)
+
+        translations = t
+        player.load(entries)
+        lrcStatusEl.textContent = `${entries.length} frases listas — ${label}`
+        playBtn.disabled = false
+      } catch (err) {
+        console.error('[lrc] ✗', err.message)
+        lrcStatusEl.textContent = 'error al traducir'
+      } finally {
+        overlay.classList.remove('active')
+        spinner.classList.add('hidden')
+      }
+    }
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0]
+      if (!file) return
+
+      const raw = await file.text()
+      fileInput.value = ''
+
+      try {
+        const res = await fetch('/lrc-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, content: raw }),
+        })
+        const { name: savedName, error } = await res.json()
+        if (error) throw new Error(error)
+        await refreshLrcList(savedName)
+      } catch (err) {
+        console.error('[lrc] ✗ no se pudo guardar en el servidor:', err.message)
+      }
+
+      await processLrc(raw, file.name)
+    })
+
+    lrcSelect.addEventListener('change', async () => {
+      const name = lrcSelect.value
+      if (!name) return
+      try {
+        const res = await fetch(`/lrc-file?name=${encodeURIComponent(name)}`)
+        if (!res.ok) throw new Error(`no se pudo cargar "${name}"`)
+        const raw = await res.text()
+        await processLrc(raw, name)
+      } catch (err) {
+        console.error('[lrc] ✗', err.message)
+        lrcStatusEl.textContent = 'error al cargar'
+      }
+    })
+
+    refreshLrcList()
+
+    playBtn.addEventListener('click', () => {
+      playBtn.disabled = true
+      stopBtn.disabled = false
+      if (titleCard) {
+        captionText.textContent = titleCard
+        captionOverlay.classList.add('active')
+      }
+      player.play()
+    })
+
+    stopBtn.addEventListener('click', () => {
+      player.stop()
+      clearCanvas()
+      hideCaption()
+      playBtn.disabled = false
+      stopBtn.disabled = true
+    })
 
     // — control fondo —
     const bgSlider = document.getElementById('bg-slider')
