@@ -1,7 +1,7 @@
 import { createServer } from 'http'
-import { spawn } from 'child_process'
 import { readFileSync, writeFileSync, existsSync, createReadStream, mkdirSync, readdirSync, statSync } from 'fs'
 import { join, extname, resolve, basename } from 'path'
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 import { buildSystemPrompt, buildUserPrompt } from '../src/translator/prompt.js'
 
 const PORT       = 3002
@@ -10,7 +10,11 @@ const SRC        = resolve('./src')
 const CACHE_PATH = './data/translations.json'
 const PROMPT_FILE = './data/system-prompt.txt'
 const LRC_DIR    = './data/lrc'
-const CLAUDE_BIN = 'claude'
+
+const AWS_REGION      = process.env.AWS_REGION ?? 'eu-west-1'
+const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID ?? 'eu.amazon.nova-micro-v1:0'
+
+const bedrock = new BedrockRuntimeClient({ region: AWS_REGION })
 
 mkdirSync(LRC_DIR, { recursive: true })
 
@@ -52,26 +56,20 @@ console.log(`system prompt: ${(systemPrompt.length / 1024).toFixed(1)} KB — ${
 const loadCache = () => existsSync(CACHE_PATH) ? JSON.parse(readFileSync(CACHE_PATH, 'utf-8')) : {}
 const saveCache = (c) => writeFileSync(CACHE_PATH, JSON.stringify(c, null, 2))
 
-function callClaude(text) {
-  return new Promise((resolve, reject) => {
-    const t0 = Date.now()
-    console.log(`[claude] → "${text}"`)
-    const proc = spawn(CLAUDE_BIN, [
-      '--print',
-      '--system-prompt-file', PROMPT_FILE,
-      '--model', 'claude-haiku-4-5-20251001',
-      buildUserPrompt(text),
-    ])
-    let out = '', err = ''
-    proc.stdout.on('data', (d) => (out += d))
-    proc.stderr.on('data', (d) => (err += d))
-    proc.on('close', (code) => {
-      if (code !== 0) { console.error(`[claude] ✗ ${err}`); return reject(new Error(err || `exit ${code}`)) }
-      const emojis = out.trim()
-      console.log(`[claude] ← "${text}" → ${emojis}  (${Date.now() - t0}ms)`)
-      resolve(emojis)
-    })
-  })
+async function callModel(text) {
+  const t0 = Date.now()
+  console.log(`[bedrock] → "${text}"`)
+
+  const res = await bedrock.send(new ConverseCommand({
+    modelId: BEDROCK_MODEL_ID,
+    system: [{ text: systemPrompt }],
+    messages: [{ role: 'user', content: [{ text: buildUserPrompt(text) }] }],
+    inferenceConfig: { maxTokens: 20 },
+  }))
+
+  const emojis = res.output.message.content[0].text.trim().split('\n')[0].trim()
+  console.log(`[bedrock] ← "${text}" → ${emojis}  (${Date.now() - t0}ms)`)
+  return emojis
 }
 
 // — traducción por lotes (para el modo LRC) —
@@ -106,7 +104,7 @@ async function translateBatch(lines) {
 
   await runWithConcurrency(pending, 4, async (text) => {
     const key = text.toLowerCase().trim()
-    cache[key] = await callClaude(text)
+    cache[key] = await callModel(text)
   })
 
   if (pending.length > 0) saveCache(cache)
@@ -229,7 +227,7 @@ const server = createServer(async (req, res) => {
           return
         }
 
-        const emojis = await callClaude(text)
+        const emojis = await callModel(text)
         cache[key] = emojis
         saveCache(cache)
 
