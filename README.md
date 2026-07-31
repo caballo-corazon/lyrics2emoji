@@ -248,13 +248,15 @@ Si vienes de una `data/translations.json` y una `data/lrc/` locales:
 node --env-file=.env scripts/migrate-data.mjs
 ```
 
-### Desplegar el frontend
+### Desplegar
 
 ```bash
-./scripts/deploy-frontend.sh
+./scripts/deploy.sh
 ```
 
-Sube `public/` y `src/` al bucket de S3 del frontend (`aws s3 sync --delete`, así que también borra lo que ya no exista localmente). Repite este paso cada vez que cambie algo en esas carpetas.
+Punto único de despliegue: aplica los cambios de `infra/` (`terraform apply` — sin `-auto-approve`, así que si no hay cambios pasa de largo en segundos, y si los hay te muestra el plan y pide confirmación antes de tocar nada) y a continuación sincroniza el frontend.
+
+Si solo quieres subir cambios de `public/` o `src/` sin pasar por Terraform, puedes llamar directamente a `./scripts/deploy-frontend.sh` (`aws s3 sync --delete`, así que también borra lo que ya no exista localmente).
 
 ### Notas
 
