@@ -1,0 +1,3 @@
+# Copia este archivo a terraform.tfvars (está en .gitignore) y ajusta el perfil
+aws_profile = "tu-perfil-de-aws"
+aws_region  = "eu-west-1"

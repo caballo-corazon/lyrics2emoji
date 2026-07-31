@@ -1,2 +1,12 @@
 .env
 node_modules/
+
+# Terraform
+infra/.terraform/
+infra/.build/
+infra/terraform.tfstate
+infra/terraform.tfstate.*
+infra/terraform.tfvars
+infra/*.tfplan
+infra/tfplan*
+infra/crash.log

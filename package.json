@@ -7,7 +7,9 @@
     "dev": "npx serve public -l 8080"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.53.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.1098.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.1098.0",
+    "@aws-sdk/client-dynamodb": "^3.1098.0",
+    "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/lib-dynamodb": "^3.1098.0"
   }
 }

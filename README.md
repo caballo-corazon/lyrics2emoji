@@ -16,12 +16,18 @@ Se carga un archivo `.lrc` (letra con timestamps, típico de reproductores de m�
 
 Los emojis se renderizan en un canvas HTML que Hydra recibe como fuente externa `s0`, permitiendo procesar visualmente el resultado en tiempo real. La frase original se muestra aparte, como texto superpuesto, mientras suenan sus emojis.
 
+Alojado públicamente en AWS (Lambda + DynamoDB + S3 + CloudFront), desplegado con Terraform.
+
+Punto de entrada estable: **https://caballo-corazon.github.io/lyrics2emoji/** (redirige al dominio real de CloudFront — ver [GitHub Pages](#github-pages)).
+
 ---
 
 ## Requisitos
 
-- [Node.js](https://nodejs.org) v18+ (usa `fetch` global)
-- Acceso a Claude Code (autenticación vía claude.ai — no requiere API key separada)
+- [Node.js](https://nodejs.org) v20+ (usa `fetch` global y la flag `--env-file`)
+- Una cuenta de AWS con acceso habilitado a un modelo de [Amazon Bedrock](https://aws.amazon.com/bedrock/) (por defecto, el perfil de inferencia `eu.amazon.nova-micro-v1:0`) en la región que uses
+- [AWS CLI](https://aws.amazon.com/cli/) configurado (`aws configure --profile <tu-perfil>`)
+- [Terraform](https://developer.hashicorp.com/terraform) ≥ 1.5, si vas a desplegar o modificar la infraestructura de `infra/`
 
 ---
 
@@ -31,7 +37,10 @@ Los emojis se renderizan en un canvas HTML que Hydra recibe como fuente externa 
 git clone <repo>
 cd lyrics2emoji
 npm install
+cp .env.example .env
 ```
+
+Edita `.env` con tu perfil y región de AWS. `DYNAMODB_TABLE` y `LRC_BUCKET` se rellenan con la salida de Terraform tras el primer despliegue (ver [Despliegue en AWS](#despliegue-en-aws)) — hasta entonces, el servidor local no podrá cachear traducciones ni guardar `.lrc`.
 
 Los SVGs de OpenMoji ya están incluidos en `public/openmoji/` (4495 emojis, v17.0.0 color).
 
@@ -44,6 +53,8 @@ npm run server
 ```
 
 Abre **http://localhost:3002** en el navegador.
+
+El servidor local sirve el frontend y, para la API, llama a las mismas funciones (`server-lib/`) que usa la Lambda en producción — es decir, en desarrollo local ya se habla con los recursos reales de AWS (Bedrock, DynamoDB, S3), no con una simulación. Por eso hace falta tener la infraestructura desplegada primero.
 
 ### Interfaz
 
@@ -120,7 +131,7 @@ Mientras suenan los emojis de una frase, su texto original aparece en un overlay
 
 1. Busca por `artista - título` (o solo el título).
 2. Los resultados muestran álbum y duración — útil para distinguir versiones (radio edit, álbum, directo...) del mismo tema.
-3. Al elegir una, el servidor descarga su letra sincronizada, la guarda en `data/lrc/` y la traduce automáticamente.
+3. Al elegir una, el servidor descarga su letra sincronizada, la guarda en S3 y la traduce automáticamente.
 
 El nombre de archivo incluye la duración (p. ej. `Bonnie Tyler - Total Eclipse of the Heart - 6m57s.lrc`) para que dos versiones del mismo título no se sobrescriban entre sí.
 
@@ -130,47 +141,61 @@ El nombre de archivo incluye la duración (p. ej. `Bonnie Tyler - Total Eclipse 
 
 ```
 lyrics2emoji/
-├── src/
-│   ├── translator/
-│   │   └── prompt.js        # prompt poético — el artefacto central
-│   ├── lrc/
-│   │   └── parser.js        # parsea .lrc → [{ time, text }]
-│   ├── player/
-│   │   └── lrcPlayer.js     # reloj interno que dispara cada frase en su timestamp
-│   ├── emojis/
-│   │   └── loader.js        # carga SVGs de OpenMoji a tamaño exacto
+├── src/                        # todo lo que corre en el navegador (se sube tal cual a S3)
+│   ├── lrc/parser.js           # parsea .lrc → [{ time, text }]
+│   ├── player/lrcPlayer.js     # reloj interno que dispara cada frase en su timestamp
+│   ├── emojis/loader.js        # carga SVGs de OpenMoji a tamaño exacto
 │   └── renderer/
-│       ├── canvas.js        # dibuja banda de emojis en canvas
-│       └── hydra.js         # conecta canvas → s0
+│       ├── canvas.js           # dibuja banda de emojis en canvas
+│       └── hydra.js            # conecta canvas → s0
+├── server-lib/                 # lógica de backend — sin HTTP, la usan server/ y lambda/ por igual
+│   ├── prompt.js                # catálogo de emojis + prompt poético — el artefacto central
+│   ├── bedrock.js               # llamada a Amazon Bedrock
+│   ├── cache.js                  # cache de traducciones sobre DynamoDB
+│   ├── lrcStorage.js             # guardado/lectura de .lrc sobre S3
+│   ├── lrclib.js                  # proxy a lrclib.net
+│   └── routes.js                  # una función por endpoint (traducir, listar, buscar...)
 ├── server/
-│   └── api.js               # servidor único: estáticos + traducción + LRC + lrclib.net
+│   └── api.js                  # servidor local: estáticos (public/ + src/) + llama a server-lib/routes.js
+├── lambda/
+│   └── handler.mjs             # adaptador Lambda Function URL → server-lib/routes.js
+├── infra/                      # Terraform: toda la infraestructura de AWS
+│   └── templates/
+│       └── redirect.html.tftpl  # plantilla del index.html de docs/ (ver GitHub Pages)
+├── docs/
+│   └── index.html              # redirección a CloudFront — generado por Terraform, no a mano
+├── scripts/
+│   ├── migrate-data.mjs        # vuelca la cache/lrc locales a AWS (uso puntual, una vez)
+│   └── deploy-frontend.sh      # sube public/ + src/ al bucket S3 del frontend
 ├── public/
-│   ├── openmoji/            # 4495 SVGs (OpenMoji v17.0.0 color)
+│   ├── openmoji/                # 4495 SVGs (OpenMoji v17.0.0 color)
 │   ├── data/
-│   │   └── openmoji.json    # metadata de emojis (lookup emoji → hexcode)
-│   └── index.html           # UI + Hydra
-└── data/
-    ├── translations.json    # cache de traducciones (crece con el uso, compartida entre canciones)
-    └── lrc/                 # .lrc guardados (subidos a mano o importados de lrclib.net)
+│   │   └── openmoji.json        # metadata de emojis (lookup emoji → hexcode)
+│   └── index.html               # UI + Hydra
+└── data/                        # solo desarrollo/histórico — la fuente de verdad real vive en AWS
+    ├── translations.json
+    └── lrc/
 ```
 
-### Endpoints del servidor
+### Endpoints
 
 | Ruta | Descripción |
 |------|-------------|
 | `POST /translate` | Traduce una frase suelta (usa/actualiza la cache) |
 | `POST /translate-batch` | Traduce una lista de frases con concurrencia limitada — usado al cargar un `.lrc` |
-| `GET /lrc-list` | Lista los `.lrc` guardados en `data/lrc/` |
+| `GET /lrc-list` | Lista los `.lrc` guardados |
 | `GET /lrc-file?name=` | Devuelve el contenido de un `.lrc` guardado |
 | `POST /lrc-file` | Guarda un `.lrc` (subida manual) |
 | `GET /lrclib-search?track=&artist=` | Busca en lrclib.net (solo resultados con letra sincronizada) |
-| `POST /lrclib-import` | Descarga una pista de lrclib.net por `id`, la guarda como `.lrc` y la devuelve |
+| `POST /lrclib-import` | Descarga una pista de lrclib.net por `id`, la guarda y la devuelve |
+
+En local, estas rutas las sirve `server/api.js`; en producción, la misma lógica (`server-lib/routes.js`) corre dentro de la Lambda detrás de CloudFront — el cliente (`public/index.html`) hace exactamente las mismas llamadas relativas en ambos casos.
 
 ### Flujo de traducción sincronizada
 
 ```
 .lrc → parseLrc() → [{ time, text }]
-     → POST /translate-batch (dedupe + cache compartida + Claude Code CLI)
+     → POST /translate-batch (dedupe + cache en DynamoDB + Amazon Bedrock)
      → al pulsar ▶: reloj interno dispara cada frase en su timestamp
      → emojis → canvas → Hydra lee s0 cada frame
      → frase original → overlay DOM, visible mientras suenan sus emojis
@@ -178,13 +203,19 @@ lyrics2emoji/
 
 ### Decisiones técnicas
 
-**Sin API key** — el servidor usa el binario de Claude Code local (`claude --print --system-prompt ...`), heredando la autenticación de la sesión activa. No se necesita `ANTHROPIC_API_KEY`.
+**Un único origen de verdad para la lógica de negocio** — `server-lib/routes.js` no sabe nada de HTTP ni de Lambda; tanto `server/api.js` (desarrollo local) como `lambda/handler.mjs` (producción) son adaptadores finos alrededor de las mismas funciones, contra los mismos recursos de AWS.
 
-**Cache persistente y compartida** — las traducciones se guardan en `data/translations.json`, indexadas por frase normalizada (minúsculas + trim). Cualquier frase ya traducida —venga de la canción que venga— responde sin llamada a la IA.
+**Sin API key propia** — ni Bedrock ni DynamoDB ni S3 necesitan una clave embebida en el código: en local se usan las credenciales del perfil de AWS (`AWS_PROFILE`), y en Lambda, el rol IAM de la función.
+
+**Mismo dominio para frontend y API** — CloudFront sirve `public/` + `src/` desde S3 (privado, vía Origin Access Control) como comportamiento por defecto, y enruta `/translate*` y `/lrc*` a la Lambda por patrón de ruta. El navegador nunca ve un dominio distinto ni necesita CORS — las llamadas `fetch` de `index.html` son idénticas en local y en producción.
+
+**Function URL pública pero verificada** — la Lambda se invoca vía [Function URL](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html) con `auth NONE` (más simple y barato que API Gateway), protegida por una cabecera secreta (`X-Origin-Verify`) que solo CloudFront conoce y que el handler comprueba antes de procesar nada — así una llamada directa a la Function URL, saltándose CloudFront, se rechaza.
+
+**Cache persistente y compartida** — las traducciones se guardan en DynamoDB, indexadas por frase normalizada (minúsculas + trim). Cualquier frase ya traducida —venga de la canción que venga— responde sin llamada al modelo.
 
 **Sin audio propio** — el reproductor solo marca el tiempo; la música suena por otra vía. Esto evita lidiar con sincronización audio/red y encaja con el uso pensado (directo, VJ).
 
-**Nombres de archivo seguros** — los nombres de `.lrc` guardados se sanean (`sanitizeLrcName` en `server/api.js`): las barras se reemplazan en vez de truncar (para no perder artistas como "AC/DC"), y cualquier intento de path traversal queda contenido dentro de `data/lrc/`.
+**Nombres de archivo seguros** — los nombres de `.lrc` se sanean (`sanitizeLrcName` en `server-lib/lrcStorage.js`): las barras se reemplazan en vez de truncar (para no perder artistas como "AC/DC"), y cualquier intento de path traversal queda contenido.
 
 **SVGs nítidos** — los SVGs de OpenMoji tienen `viewBox="0 0 72 72"` sin dimensiones explícitas. El loader inyecta `width`/`height` en el XML antes de rasterizar para evitar upscaling desde 72px.
 
@@ -194,9 +225,57 @@ lyrics2emoji/
 
 ---
 
+## Despliegue en AWS
+
+La infraestructura vive en `infra/` (Terraform): Lambda + Function URL, DynamoDB, dos buckets S3 (frontend y `.lrc`), CloudFront, IAM.
+
+### Primer despliegue
+
+```bash
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # ajusta aws_profile y aws_region
+terraform init
+terraform apply
+```
+
+La salida incluye `dynamodb_table_name`, `lrc_bucket_name` y `cloudfront_domain` — copia los dos primeros a tu `.env` (`DYNAMODB_TABLE`, `LRC_BUCKET`).
+
+### Migrar datos existentes (una sola vez)
+
+Si vienes de una `data/translations.json` y una `data/lrc/` locales:
+
+```bash
+node --env-file=.env scripts/migrate-data.mjs
+```
+
+### Desplegar el frontend
+
+```bash
+./scripts/deploy-frontend.sh
+```
+
+Sube `public/` y `src/` al bucket de S3 del frontend (`aws s3 sync --delete`, así que también borra lo que ya no exista localmente). Repite este paso cada vez que cambie algo en esas carpetas.
+
+### Notas
+
+- **Región y modelo de Bedrock**: por defecto `eu-west-1` y el perfil de inferencia `eu.amazon.nova-micro-v1:0`, configurables como variables de Terraform (`aws_region`, `bedrock_model_id`) y de entorno (`AWS_REGION`, `BEDROCK_MODEL_ID`).
+- **Coste**: pensado para uso esporádico — DynamoDB y Lambda en modo *pay-per-request*, CloudFront dentro de su capa gratuita para este volumen.
+- **Estado de Terraform**: local (`infra/terraform.tfstate`, en `.gitignore`) — proyecto personal en solitario, sin backend remoto por ahora.
+- **Etiquetas**: todos los recursos que lo soportan llevan `Project`, `ManagedBy` y `CostCenter` (`default_tags` en `infra/provider.tf`).
+
+### GitHub Pages
+
+`docs/index.html` es una página de redirección a la URL real de CloudFront — sirve como enlace corto y estable (`https://caballo-corazon.github.io/lyrics2emoji/`) aunque el dominio de CloudFront cambie el día de mañana (p. ej. al recrear la distribución).
+
+No se edita a mano: lo genera el recurso `local_file` de `infra/github-pages.tf` a partir de la plantilla `infra/templates/redirect.html.tftpl`, en cada `terraform apply`. Solo hay que activarlo una vez en GitHub: `Settings → Pages → Deploy from a branch → main /docs`.
+
+> La barra de direcciones cambia a la URL de CloudFront tras la redirección — es un punto de entrada, no un dominio propio persistente (para eso haría falta un dominio real + certificado ACM en CloudFront, pendiente).
+
+---
+
 ## Prompt
 
-El prompt está en [`src/translator/prompt.js`](src/translator/prompt.js). Es el artefacto más importante del proyecto — ajustarlo cambia radicalmente el carácter de las traducciones.
+El prompt está en [`server-lib/prompt.js`](server-lib/prompt.js). Es el artefacto más importante del proyecto — ajustarlo cambia radicalmente el carácter de las traducciones.
 
 El criterio actual prioriza **ambigüedad poética** sobre claridad: metáforas visuales, resonancia emocional, espacio para la interpretación del espectador.
 
@@ -207,4 +286,4 @@ El criterio actual prioriza **ambigüedad poética** sobre claridad: metáforas 
 - Emojis: [OpenMoji](https://openmoji.org) — CC BY-SA 4.0
 - Letras sincronizadas: [lrclib.net](https://lrclib.net) — base de datos abierta y comunitaria
 - Síntesis visual: [Hydra](https://hydra.ojack.xyz) — Olivia Jack
-- Traducción: [Claude](https://anthropic.com) — Anthropic
+- Traducción: [Amazon Bedrock](https://aws.amazon.com/bedrock/) (Nova Micro)
