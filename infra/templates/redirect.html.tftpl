@@ -3,11 +3,33 @@
 <head>
   <meta charset="utf-8">
   <title>lyrics2emoji</title>
-  <meta http-equiv="refresh" content="3; url=https://${cloudfront_domain}/">
+  <meta http-equiv="refresh" content="${redirect_delay_seconds}; url=https://${cloudfront_domain}/">
   <link rel="canonical" href="https://${cloudfront_domain}/">
-  <script>location.replace("https://${cloudfront_domain}/")</script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.2rem;
+      background: #1a1a1a;
+      color: #eee;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      text-align: center;
+      padding: 2rem;
+      box-sizing: border-box;
+    }
+    img { width: min(300px, 80vw); height: auto; }
+    p { max-width: 480px; line-height: 1.5; opacity: 0.85; margin: 0; }
+    a { color: #9ad6ff; }
+  </style>
+  <script>setTimeout(() => location.replace("https://${cloudfront_domain}/"), ${redirect_delay_seconds * 1000})</script>
 </head>
 <body>
+  <img src="logo.svg" alt="lyrics2emoji">
+  <p>Traducción de letras sincronizadas a pictogramas poéticos, reproducidos en sincronía con la canción para Hydra.</p>
   <p>Redirigiendo a <a href="https://${cloudfront_domain}/">lyrics2emoji</a>…</p>
 </body>
 </html>
