@@ -1,6 +1,10 @@
 # Bucket privado para el frontend estático (public/ + src/) — solo CloudFront lo lee, vía OAC
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${data.aws_caller_identity.current.account_id}"
+
+  tags = {
+    Name = "${var.project_name}-frontend"
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
@@ -14,6 +18,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 
 resource "aws_cloudfront_origin_access_control" "s3" {
   name                              = "${var.project_name}-s3-oac"
+  description                       = "Permite que solo esta distribución de CloudFront lea el bucket S3 del frontend"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"

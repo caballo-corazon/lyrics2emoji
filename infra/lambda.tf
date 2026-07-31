@@ -25,6 +25,7 @@ resource "random_password" "origin_secret" {
 
 resource "aws_lambda_function" "api" {
   function_name    = "${var.project_name}-api"
+  description      = "API de ${var.project_name}: traduce frases a emojis (Bedrock), gestiona cache (DynamoDB) y .lrc (S3)"
   role             = aws_iam_role.lambda.arn
   handler          = "lambda/handler.handler"
   runtime          = "nodejs22.x"
@@ -32,6 +33,10 @@ resource "aws_lambda_function" "api" {
   memory_size      = 512
   filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+
+  tags = {
+    Name = "${var.project_name}-api"
+  }
 
   environment {
     variables = {

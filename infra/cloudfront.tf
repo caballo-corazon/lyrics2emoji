@@ -15,7 +15,8 @@ data "aws_cloudfront_cache_policy" "caching_disabled" {
 // Lambda (necesita el Host real de la Function URL). No reenviamos ninguna
 // cabecera porque nuestras rutas no leen ninguna del request entrante.
 resource "aws_cloudfront_origin_request_policy" "lambda_api" {
-  name = "${var.project_name}-lambda-api-origin-request"
+  name    = "${var.project_name}-lambda-api-origin-request"
+  comment = "Sin cabeceras (evita romper la firma del origen Lambda), reenvía todos los query strings, sin cookies"
 
   cookies_config {
     cookie_behavior = "none"
@@ -32,8 +33,13 @@ resource "aws_cloudfront_origin_request_policy" "lambda_api" {
 
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
+  comment             = "${var.project_name} — frontend (S3) + API (Lambda) tras un mismo dominio"
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+
+  tags = {
+    Name = "${var.project_name}"
+  }
 
   origin {
     origin_id                = "s3-frontend"

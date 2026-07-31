@@ -7,4 +7,8 @@ resource "aws_dynamodb_table" "translations" {
     name = "phrase"
     type = "S"
   }
+
+  tags = {
+    Name = "${var.project_name}-translations"
+  }
 }

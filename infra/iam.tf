@@ -11,7 +11,12 @@ data "aws_iam_policy_document" "lambda_assume" {
 
 resource "aws_iam_role" "lambda" {
   name               = "${var.project_name}-lambda"
+  description        = "Rol de ejecución de la Lambda de ${var.project_name} (Bedrock, DynamoDB, S3)"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+
+  tags = {
+    Name = "${var.project_name}-lambda"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_basic" {
@@ -60,8 +65,15 @@ data "aws_iam_policy_document" "lambda_permissions" {
   }
 }
 
-resource "aws_iam_role_policy" "lambda_permissions" {
-  name   = "${var.project_name}-lambda-permissions"
-  role   = aws_iam_role.lambda.id
-  policy = data.aws_iam_policy_document.lambda_permissions.json
+// política gestionada en vez de inline — las inline (aws_iam_role_policy) no admiten
+// descripción en la API de AWS, así queda visible en IAM > Políticas con su descripción
+resource "aws_iam_policy" "lambda_permissions" {
+  name        = "${var.project_name}-lambda-permissions"
+  description = "Permisos de la Lambda de ${var.project_name}: cache en DynamoDB, .lrc en S3, traducción vía Bedrock"
+  policy      = data.aws_iam_policy_document.lambda_permissions.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_permissions" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = aws_iam_policy.lambda_permissions.arn
 }
