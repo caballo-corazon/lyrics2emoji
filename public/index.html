@@ -181,7 +181,7 @@
     }
     #lrc-select:hover { background: rgba(255,255,255,0.2); }
 
-    #play-btn, #stop-btn, #lrclib-toggle-btn, #lrclib-search-btn {
+    #play-btn, #pause-btn, #stop-btn, #lrclib-toggle-btn, #lrclib-search-btn {
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       color: #fff;
@@ -190,10 +190,11 @@
       cursor: pointer;
     }
     #play-btn:hover:not(:disabled),
+    #pause-btn:hover:not(:disabled),
     #stop-btn:hover:not(:disabled),
     #lrclib-toggle-btn:hover,
     #lrclib-search-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
-    #play-btn:disabled, #stop-btn:disabled { opacity: 0.4; cursor: default; }
+    #play-btn:disabled, #pause-btn:disabled, #stop-btn:disabled { opacity: 0.4; cursor: default; }
 
     /* — panel de búsqueda en lrclib.net — */
     #lrclib-panel {
@@ -315,6 +316,7 @@
     <label id="lrc-label" for="lrc-file">📄 nuevo .lrc</label>
     <input id="lrc-file" type="file" accept=".lrc" hidden />
     <button id="play-btn" disabled>▶</button>
+    <button id="pause-btn" disabled>⏸</button>
     <button id="stop-btn" disabled>■</button>
     <span id="lrc-status"></span>
   </div>
@@ -388,6 +390,7 @@
     const fileInput   = document.getElementById('lrc-file')
     const lrcSelect   = document.getElementById('lrc-select')
     const playBtn     = document.getElementById('play-btn')
+    const pauseBtn    = document.getElementById('pause-btn')
     const stopBtn     = document.getElementById('stop-btn')
     const lrcStatusEl = document.getElementById('lrc-status')
 
@@ -413,6 +416,7 @@
       onEnd: () => {
         hideCaption()
         playBtn.disabled = false
+        pauseBtn.disabled = true
         stopBtn.disabled = true
       },
     })
@@ -518,6 +522,7 @@
       player.stop()
       hideCaption()
       playBtn.disabled = true
+      pauseBtn.disabled = true
       stopBtn.disabled = true
 
       const { entries, meta } = parseLrc(raw)
@@ -600,13 +605,26 @@
     refreshLrcList()
 
     playBtn.addEventListener('click', () => {
+      const resuming = player.paused
       playBtn.disabled = true
+      pauseBtn.disabled = false
       stopBtn.disabled = false
-      if (titleCard) {
-        captionText.textContent = titleCard
-        captionOverlay.classList.add('active')
+      if (!resuming) {
+        if (titleCard) {
+          captionText.textContent = titleCard
+          captionOverlay.classList.add('active')
+        }
+        player.play()
+      } else {
+        player.resume()
       }
-      player.play()
+    })
+
+    pauseBtn.addEventListener('click', () => {
+      player.pause()
+      playBtn.disabled = false
+      pauseBtn.disabled = true
+      // el canvas y el overlay se quedan congelados tal cual — no se limpian
     })
 
     stopBtn.addEventListener('click', () => {
@@ -614,6 +632,7 @@
       clearCanvas()
       hideCaption()
       playBtn.disabled = false
+      pauseBtn.disabled = true
       stopBtn.disabled = true
     })
 

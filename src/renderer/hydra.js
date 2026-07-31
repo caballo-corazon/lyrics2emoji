@@ -30,8 +30,8 @@ export function showText(text) {
 export function clearCanvas() {
   if (!emojiCanvas) return
   stopLoading()
-  const ctx = emojiCanvas.getContext('2d')
-  ctx.clearRect(0, 0, emojiCanvas.width, emojiCanvas.height)
+  lastEmojiString = null
+  fillBackground(emojiCanvas)
 }
 
 export async function showEmojis(emojiString, animate = true) {
