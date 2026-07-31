@@ -152,43 +152,43 @@
       left: 50%;
       transform: translateX(-50%);
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
       z-index: 10;
       font-family: monospace;
     }
 
-    #lrc-label {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: #fff;
-      padding: 0.6rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-      white-space: nowrap;
+    #playback-controls, #lrc-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
-    #lrc-label:hover { background: rgba(255,255,255,0.2); }
 
-    #lrc-select {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: #fff;
-      padding: 0.55rem 0.6rem;
-      font-family: monospace;
-      font-size: 0.85rem;
-      max-width: 160px;
-      cursor: pointer;
-    }
-    #lrc-select:hover { background: rgba(255,255,255,0.2); }
-
-    #play-btn, #pause-btn, #stop-btn, #lrclib-toggle-btn, #lrclib-search-btn {
+    /* misma altura para todos los controles: mismo padding, borde y font-size */
+    #lrc-label,
+    #lrc-select,
+    #play-btn, #pause-btn, #stop-btn,
+    #lrclib-toggle-btn, #lrclib-search-btn {
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       color: #fff;
-      padding: 0.6rem 1.2rem;
+      padding: 0.6rem 1rem;
       font-family: monospace;
+      font-size: 0.85rem;
+      line-height: 1;
       cursor: pointer;
+      white-space: nowrap;
     }
+
+    #lrc-select {
+      max-width: 325px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #lrc-label:hover,
+    #lrc-select:hover,
     #play-btn:hover:not(:disabled),
     #pause-btn:hover:not(:disabled),
     #stop-btn:hover:not(:disabled),
@@ -199,7 +199,7 @@
     /* — panel de búsqueda en lrclib.net — */
     #lrclib-panel {
       position: fixed;
-      bottom: 5.2rem;
+      bottom: 10.2rem;
       left: 50%;
       transform: translateX(-50%);
       z-index: 10;
@@ -264,10 +264,7 @@
     #lrc-status {
       font-size: 0.75rem;
       color: rgba(255,255,255,0.4);
-      max-width: 260px;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   </style>
 </head>
@@ -309,16 +306,20 @@
   </div>
 
   <div id="lrc-bar">
-    <select id="lrc-select">
-      <option value="">— canciones guardadas —</option>
-    </select>
-    <button id="lrclib-toggle-btn" type="button">🔎 lrclib</button>
-    <label id="lrc-label" for="lrc-file">📄 nuevo .lrc</label>
-    <input id="lrc-file" type="file" accept=".lrc" hidden />
-    <button id="play-btn" disabled>▶</button>
-    <button id="pause-btn" disabled>⏸</button>
-    <button id="stop-btn" disabled>■</button>
     <span id="lrc-status"></span>
+    <div id="playback-controls">
+      <button id="play-btn" disabled>▶</button>
+      <button id="pause-btn" disabled>⏸</button>
+      <button id="stop-btn" disabled>■</button>
+    </div>
+    <div id="lrc-controls">
+      <button id="lrclib-toggle-btn" type="button">🔎 lrclib</button>
+      <label id="lrc-label" for="lrc-file">📄 nuevo .lrc</label>
+      <input id="lrc-file" type="file" accept=".lrc" hidden />
+      <select id="lrc-select">
+        <option value="">🎵 catálogo de canciones</option>
+      </select>
+    </div>
   </div>
 
   <script src="https://unpkg.com/hydra-synth"></script>
@@ -425,7 +426,7 @@
       try {
         const res = await fetch('/lrc-list')
         const { files } = await res.json()
-        lrcSelect.innerHTML = '<option value="">— canciones guardadas —</option>'
+        lrcSelect.innerHTML = '<option value="">🎵 catálogo de canciones</option>'
         for (const name of files) {
           const opt = document.createElement('option')
           opt.value = name
@@ -609,6 +610,7 @@
       playBtn.disabled = true
       pauseBtn.disabled = false
       stopBtn.disabled = false
+      lrcStatusEl.textContent = ''
       if (!resuming) {
         if (titleCard) {
           captionText.textContent = titleCard
